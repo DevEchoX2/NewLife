@@ -1,0 +1,150 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import BrowserChrome from '../components/BrowserChrome.astro';
+import CenterHero from '../components/CenterHero.astro';
+import StatusFooter from '../components/StatusFooter.astro';
+
+const vpnLocations = [
+  { id: 'us-east', label: 'US East', wisp: 'wss://us-east.wisp.mercurywork.shop/', transport: 'epoxy' },
+  { id: 'us-west', label: 'US West', wisp: 'wss://us-west.wisp.mercurywork.shop/', transport: 'libcurl' },
+  { id: 'eu-central', label: 'EU Central', wisp: 'wss://eu-central.wisp.mercurywork.shop/', transport: 'epoxy' }
+];
+---
+
+<BaseLayout title="NewLife">
+  <main
+    class="page-shell"
+    data-proxy-engine="ultraviolet"
+    data-uv-encoding="xor"
+    data-vpn-locations={JSON.stringify(vpnLocations)}
+  >
+    <BrowserChrome vpnLocations={vpnLocations} />
+    <CenterHero />
+    <StatusFooter />
+  </main>
+</BaseLayout>
+
+<script>
+  // @ts-nocheck
+  import { BareMuxConnection } from '@mercuryworkshop/bare-mux';
+  import EpoxyTransport from '@mercuryworkshop/epoxy-transport';
+  import LibcurlTransport from '@mercuryworkshop/libcurl-transport';
+
+  const bareMuxWorker = '/bare-mux-worker.js';
+
+  const PROXY_PREFIX = {
+    ultraviolet: '/__uv/',
+    scramjet: '/__sj/'
+  };
+
+  const pageShell = document.querySelector('.page-shell');
+  const heroInput = document.querySelector('#hero-search');
+  const addressInput = document.querySelector('#address-input');
+  const vpnSelect = document.querySelector('#vpn-location');
+  const activeNode = document.querySelector('#active-node');
+  const vpnLocations = JSON.parse(pageShell?.getAttribute('data-vpn-locations') ?? '[]');
+
+  const connection = new BareMuxConnection(bareMuxWorker);
+
+  const transportFactories = {
+    epoxy: (wisp) => new EpoxyTransport({ wisp }),
+    libcurl: (wisp) => new LibcurlTransport({ wisp })
+  };
+
+  const safeLog = (phase, details) => {
+    console.info(`[NewLife handshake] ${phase}`, details);
+  };
+
+  const xorEncode = (value) => {
+    const data = new TextEncoder().encode(value);
+    const encoded = Array.from(data, (char, i) => char ^ ((i + 7) % 16));
+    return btoa(String.fromCharCode(...encoded)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  };
+
+  const plainEncode = (value) => encodeURIComponent(value);
+
+  const isUrlLike = (value) => {
+    const pattern = /^(?:(https?:\/\/)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?::\d{2,5})?(?:\/[^\s]*)?|https?:\/\/[^\s]+)$/i;
+    return pattern.test(value);
+  };
+
+  const toSearchOrUrl = (rawValue) => {
+    const value = rawValue.trim();
+    if (!value) return '';
+
+    if (isUrlLike(value)) {
+      return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    }
+
+    return `https://duckduckgo.com/?q=${encodeURIComponent(value)}`;
+  };
+
+  const resolveEngine = (targetUrl) => {
+    if (targetUrl.startsWith('https://sj:') || targetUrl.includes('/scramjet')) {
+      return 'scramjet';
+    }
+
+    return pageShell?.dataset.proxyEngine === 'scramjet' ? 'scramjet' : 'ultraviolet';
+  };
+
+  const encodeForEngine = (engine, url) => {
+    if (engine === 'scramjet') {
+      return plainEncode(url);
+    }
+
+    const mode = pageShell?.dataset.uvEncoding === 'plain' ? 'plain' : 'xor';
+    return mode === 'plain' ? plainEncode(url) : xorEncode(url);
+  };
+
+  const navigateThroughProxy = (rawInput) => {
+    const finalized = toSearchOrUrl(rawInput);
+    if (!finalized) return;
+
+    const engine = resolveEngine(finalized);
+    const proxyPrefix = PROXY_PREFIX[engine] ?? PROXY_PREFIX.ultraviolet;
+    const encoded = encodeForEngine(engine, finalized);
+
+    safeLog('routing', { engine, proxyPrefix, finalized });
+    window.location.assign(`${proxyPrefix}${encoded}`);
+  };
+
+  const connectLocation = async (locationId) => {
+    const location = vpnLocations.find((entry) => entry.id === locationId) ?? vpnLocations[0];
+    if (!location) return;
+
+    const transportType = location.transport === 'libcurl' ? 'libcurl' : 'epoxy';
+    const transport = transportFactories[transportType](location.wisp);
+
+    safeLog('start', { node: location.label, wisp: location.wisp, transport: transportType });
+    await transport.init();
+    await connection.setRemoteTransport(transport, `${transportType}:${location.label}`);
+    safeLog('complete', { node: location.label, transport: transportType });
+
+    if (activeNode) {
+      activeNode.textContent = `Connected: ${location.label} · ${transportType === 'libcurl' ? 'Libcurl' : 'Epoxy'}`;
+    }
+  };
+
+  const handleEnterNavigate = (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    navigateThroughProxy(event.currentTarget.value);
+  };
+
+  addressInput?.addEventListener('keydown', handleEnterNavigate);
+  heroInput?.addEventListener('keydown', handleEnterNavigate);
+
+  vpnSelect?.addEventListener('change', async (event) => {
+    const selectedId = event.currentTarget.value;
+
+    try {
+      await connectLocation(selectedId);
+    } catch (error) {
+      safeLog('error', { selectedId, error });
+    }
+  });
+
+  connectLocation(vpnSelect?.value ?? vpnLocations[0]?.id).catch((error) => {
+    safeLog('error', { selectedId: vpnSelect?.value, error });
+  });
+</script>

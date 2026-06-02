@@ -1,0 +1,40 @@
+---
+import { ArrowLeft, ArrowRight, RotateCw, Link, Settings } from 'lucide-astro';
+interface VpnLocation {
+  id: string;
+  label: string;
+}
+
+const { vpnLocations = [] }: { vpnLocations?: VpnLocation[] } = Astro.props;
+---
+
+<header class="browser-chrome">
+  <div class="chrome-controls">
+    <button class="icon-btn" aria-label="Back"><ArrowLeft size={18} /></button>
+    <button class="icon-btn" aria-label="Forward"><ArrowRight size={18} /></button>
+    <button class="icon-btn" aria-label="Refresh"><RotateCw size={18} /></button>
+  </div>
+
+  <div class="chrome-tab" aria-current="page">⛰️ New Tab</div>
+
+  <input
+    id="address-input"
+    class="address-bar"
+    type="text"
+    spellcheck="false"
+    placeholder="Search or enter website URL"
+    autocomplete="off"
+  />
+
+  <label class="vpn-switcher">
+    <span class="sr-only">VPN location</span>
+    <select id="vpn-location" name="vpn-location">
+      {vpnLocations.map((location) => <option value={location.id}>{location.label}</option>)}
+    </select>
+  </label>
+
+  <div class="chrome-actions">
+    <button class="icon-btn" aria-label="Link"><Link size={18} /></button>
+    <button class="icon-btn" aria-label="Settings"><Settings size={18} /></button>
+  </div>
+</header>
