@@ -1,6 +1,11 @@
 ---
 import { ArrowLeft, ArrowRight, RotateCw, Link, Settings } from 'lucide-astro';
-const { vpnLocations = [] } = Astro.props;
+interface VpnLocation {
+  id: string;
+  label: string;
+}
+
+const { vpnLocations = [] }: { vpnLocations?: VpnLocation[] } = Astro.props;
 ---
 
 <header class="browser-chrome">

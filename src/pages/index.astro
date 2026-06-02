@@ -12,20 +12,25 @@ const vpnLocations = [
 ---
 
 <BaseLayout title="NewLife">
-  <main class="page-shell" data-proxy-engine="ultraviolet" data-uv-encoding="xor">
+  <main
+    class="page-shell"
+    data-proxy-engine="ultraviolet"
+    data-uv-encoding="xor"
+    data-vpn-locations={JSON.stringify(vpnLocations)}
+  >
     <BrowserChrome vpnLocations={vpnLocations} />
     <CenterHero />
     <StatusFooter />
   </main>
 </BaseLayout>
 
-<script type="module" define:vars={{ vpnLocations }}>
+<script>
+  // @ts-nocheck
   import { BareMuxConnection } from '@mercuryworkshop/bare-mux';
-  import bareMuxWorker from '@mercuryworkshop/bare-mux/dist/worker.js?url';
   import EpoxyTransport from '@mercuryworkshop/epoxy-transport';
   import LibcurlTransport from '@mercuryworkshop/libcurl-transport';
-  import '@titaniumnetwork-dev/ultraviolet';
-  import '@mercuryworkshop/scramjet';
+
+  const bareMuxWorker = '/bare-mux-worker.js';
 
   const PROXY_PREFIX = {
     ultraviolet: '/__uv/',
@@ -37,6 +42,7 @@ const vpnLocations = [
   const addressInput = document.querySelector('#address-input');
   const vpnSelect = document.querySelector('#vpn-location');
   const activeNode = document.querySelector('#active-node');
+  const vpnLocations = JSON.parse(pageShell?.getAttribute('data-vpn-locations') ?? '[]');
 
   const connection = new BareMuxConnection(bareMuxWorker);
 
